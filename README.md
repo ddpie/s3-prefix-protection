@@ -173,28 +173,28 @@ The system supports the following configuration options:
 
 #### Cost Estimation Examples
 
-*Note: All pricing estimates are based on US East (N. Virginia) region as of September 2025.*
+*Note: Estimates are approximate and based on US East (N. Virginia) region pricing.*
 
 **Small Scale (1,000 objects/month):**
-- S3 storage (1GB): ~$0.02
-- Lambda (1,000 invocations): ~$0.00 (within free tier)
-- SQS (2,000 requests): ~$0.00 (within free tier)
-- CloudWatch logs (10MB): ~$0.01
-- **Total: ~$0.03/month**
+- S3 storage (1GB): Minimal cost
+- Lambda (1,000 invocations): Free tier coverage
+- SQS (2,000 requests): Free tier coverage
+- CloudWatch logs (10MB): Minimal cost
+- **Total: Under $0.10/month**
 
 **Medium Scale (100,000 objects/month):**
-- S3 storage (100GB): ~$2.30
-- Lambda (100,000 invocations): ~$0.02
-- SQS (200,000 requests): ~$0.08
-- CloudWatch logs (1GB): ~$0.53
-- **Total: ~$2.93/month**
+- S3 storage (100GB): ~$2-3
+- Lambda (100,000 invocations): Minimal cost
+- SQS (200,000 requests): ~$0.10
+- CloudWatch logs (1GB): ~$0.50
+- **Total: ~$3-4/month**
 
 **Large Scale (1M objects/month):**
-- S3 storage (1TB): ~$23.00
+- S3 storage (1TB): ~$20-25
 - Lambda (1M invocations): ~$0.20
-- SQS (2M requests): ~$0.80
-- CloudWatch logs (10GB): ~$5.30
-- **Total: ~$29.30/month**
+- SQS (2M requests): ~$1
+- CloudWatch logs (10GB): ~$5
+- **Total: ~$25-30/month**
 
 #### Cost Optimization Tips
 
@@ -404,28 +404,28 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 
 #### 成本估算示例
 
-*注：所有定价估算基于美国东部（弗吉尼亚北部）区域，截至2025年9月。*
+*注：估算为近似值，基于美国东部（弗吉尼亚北部）区域定价。*
 
 **小规模使用 (1,000个对象/月):**
-- S3存储 (1GB): ~$0.02
-- Lambda (1,000次调用): ~$0.00 (免费套餐内)
-- SQS (2,000个请求): ~$0.00 (免费套餐内)
-- CloudWatch日志 (10MB): ~$0.01
-- **总计: ~$0.03/月**
+- S3存储 (1GB): 极低成本
+- Lambda (1,000次调用): 免费套餐覆盖
+- SQS (2,000个请求): 免费套餐覆盖
+- CloudWatch日志 (10MB): 极低成本
+- **总计: 低于$0.10/月**
 
 **中等规模使用 (100,000个对象/月):**
-- S3存储 (100GB): ~$2.30
-- Lambda (100,000次调用): ~$0.02
-- SQS (200,000个请求): ~$0.08
-- CloudWatch日志 (1GB): ~$0.53
-- **总计: ~$2.93/月**
+- S3存储 (100GB): ~$2-3
+- Lambda (100,000次调用): 极低成本
+- SQS (200,000个请求): ~$0.10
+- CloudWatch日志 (1GB): ~$0.50
+- **总计: ~$3-4/月**
 
 **大规模使用 (100万个对象/月):**
-- S3存储 (1TB): ~$23.00
+- S3存储 (1TB): ~$20-25
 - Lambda (100万次调用): ~$0.20
-- SQS (200万个请求): ~$0.80
-- CloudWatch日志 (10GB): ~$5.30
-- **总计: ~$29.30/月**
+- SQS (200万个请求): ~$1
+- CloudWatch日志 (10GB): ~$5
+- **总计: ~$25-30/月**
 
 #### 成本优化建议
 
