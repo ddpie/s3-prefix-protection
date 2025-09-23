@@ -146,6 +146,84 @@ The system supports the following configuration options:
 - CloudWatch logging for audit trails
 - No hardcoded credentials
 
+### Cost Analysis
+
+#### Service Pricing Overview
+
+**Amazon S3 Storage:**
+- Standard storage: $0.023/GB for first 50TB/month
+- Versioning impact: Each object version consumes additional storage
+- Object Lock: No additional storage cost, but prevents deletion
+
+**AWS Lambda:**
+- Requests: $0.20 per 1M requests
+- Compute: $0.0000133334 per GB-second (first 7.5B GB-seconds)
+- Free tier: 1M requests and 400,000 GB-seconds per month
+
+**Amazon SQS:**
+- Standard queue: $0.40 per 1M requests (first 100B requests)
+- Dead letter queue: Same pricing as standard queue
+- Message retention: No additional cost for 14-day retention
+
+**Amazon CloudWatch:**
+- Logs ingestion: $0.50 per GB
+- Logs storage: $0.03 per GB per month
+- Custom metrics: $0.30 per metric per month
+- Alarms: $0.10 per alarm per month
+
+#### Cost Estimation Examples
+
+**Small Scale (1,000 objects/month):**
+- S3 storage (1GB): ~$0.02
+- Lambda (1,000 invocations): ~$0.00 (within free tier)
+- SQS (2,000 requests): ~$0.00 (within free tier)
+- CloudWatch logs (10MB): ~$0.01
+- **Total: ~$0.03/month**
+
+**Medium Scale (100,000 objects/month):**
+- S3 storage (100GB): ~$2.30
+- Lambda (100,000 invocations): ~$0.02
+- SQS (200,000 requests): ~$0.08
+- CloudWatch logs (1GB): ~$0.53
+- **Total: ~$2.93/month**
+
+**Large Scale (1M objects/month):**
+- S3 storage (1TB): ~$23.00
+- Lambda (1M invocations): ~$0.20
+- SQS (2M requests): ~$0.80
+- CloudWatch logs (10GB): ~$5.30
+- **Total: ~$29.30/month**
+
+#### Cost Optimization Tips
+
+**Lambda Optimization:**
+- Use minimum required memory (128MB default)
+- Optimize timeout settings to avoid unnecessary charges
+- Batch processing can reduce invocation costs
+
+**Storage Optimization:**
+- Consider S3 Intelligent-Tiering for infrequently accessed objects
+- Set appropriate lifecycle policies for old versions
+- Monitor storage growth due to versioning
+
+**Monitoring Optimization:**
+- Adjust CloudWatch log retention period (default: 30 days)
+- Use log filtering to reduce ingestion costs
+- Set up billing alerts for cost monitoring
+
+**Free Tier Benefits:**
+- Lambda: 1M requests/month free for first 12 months
+- CloudWatch: 10 custom metrics and 10 alarms free
+- S3: 5GB storage free for first 12 months
+
+#### Cost Monitoring
+
+Set up AWS Budgets and Cost Explorer to monitor:
+- Monthly spending by service
+- Cost trends and projections
+- Unusual usage patterns
+- Budget alerts when costs exceed thresholds
+
 ### Cleanup
 
 To remove the protection system:
@@ -296,6 +374,84 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 - 加密的SQS队列
 - CloudWatch日志记录用于审计跟踪
 - 无硬编码凭证
+
+### 成本分析
+
+#### 服务定价概览
+
+**Amazon S3存储:**
+- 标准存储: 前50TB每月$0.023/GB
+- 版本控制影响: 每个对象版本都会消耗额外存储空间
+- Object Lock: 无额外存储成本，但会阻止删除
+
+**AWS Lambda:**
+- 请求数: 每100万请求$0.20
+- 计算时间: 每GB-秒$0.0000133334 (前75亿GB-秒)
+- 免费套餐: 每月100万请求和40万GB-秒
+
+**Amazon SQS:**
+- 标准队列: 每100万请求$0.40 (前1000亿请求)
+- 死信队列: 与标准队列相同定价
+- 消息保留: 14天保留期无额外费用
+
+**Amazon CloudWatch:**
+- 日志摄取: 每GB $0.50
+- 日志存储: 每月每GB $0.03
+- 自定义指标: 每月每个指标$0.30
+- 告警: 每月每个告警$0.10
+
+#### 成本估算示例
+
+**小规模使用 (1,000个对象/月):**
+- S3存储 (1GB): ~$0.02
+- Lambda (1,000次调用): ~$0.00 (免费套餐内)
+- SQS (2,000个请求): ~$0.00 (免费套餐内)
+- CloudWatch日志 (10MB): ~$0.01
+- **总计: ~$0.03/月**
+
+**中等规模使用 (100,000个对象/月):**
+- S3存储 (100GB): ~$2.30
+- Lambda (100,000次调用): ~$0.02
+- SQS (200,000个请求): ~$0.08
+- CloudWatch日志 (1GB): ~$0.53
+- **总计: ~$2.93/月**
+
+**大规模使用 (100万个对象/月):**
+- S3存储 (1TB): ~$23.00
+- Lambda (100万次调用): ~$0.20
+- SQS (200万个请求): ~$0.80
+- CloudWatch日志 (10GB): ~$5.30
+- **总计: ~$29.30/月**
+
+#### 成本优化建议
+
+**Lambda优化:**
+- 使用最小所需内存 (默认128MB)
+- 优化超时设置以避免不必要的费用
+- 批量处理可以减少调用成本
+
+**存储优化:**
+- 对不常访问的对象考虑使用S3智能分层
+- 为旧版本设置适当的生命周期策略
+- 监控由于版本控制导致的存储增长
+
+**监控优化:**
+- 调整CloudWatch日志保留期 (默认30天)
+- 使用日志过滤来减少摄取成本
+- 设置计费告警进行成本监控
+
+**免费套餐优势:**
+- Lambda: 前12个月每月100万请求免费
+- CloudWatch: 10个自定义指标和10个告警免费
+- S3: 前12个月5GB存储免费
+
+#### 成本监控
+
+设置AWS预算和成本浏览器来监控:
+- 按服务的月度支出
+- 成本趋势和预测
+- 异常使用模式
+- 超出阈值时的预算告警
 
 ### 清理
 
