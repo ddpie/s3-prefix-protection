@@ -12,27 +12,18 @@ The S3 Prefix Protection System is an automated AWS solution that applies Legal 
 
 ### Architecture Diagram
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   S3 Bucket     │    │   SQS Queue     │    │ Lambda Function │
-│                 │    │                 │    │                 │
-│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│ │ Object      │ │───▶│ │ S3 Event    │ │───▶│ │ Process &   │ │
-│ │ Upload      │ │    │ │ Message     │ │    │ │ Apply Legal │ │
-│ │ (Prefix     │ │    │ │             │ │    │ │ Hold        │ │
-│ │ Match)      │ │    │ └─────────────┘ │    │ └─────────────┘ │
-│ └─────────────┘ │    │                 │    │                 │
-│                 │    │ ┌─────────────┐ │    └─────────────────┘
-│ • Versioning    │    │ │ Dead Letter │ │             │
-│ • Object Lock   │    │ │ Queue (DLQ) │ │             │
-│ • Event Notify  │    │ │             │ │             ▼
-└─────────────────┘    │ └─────────────┘ │    ┌─────────────────┐
-                       └─────────────────┘    │   CloudWatch    │
-                                              │                 │
-                                              │ • Logs          │
-                                              │ • Metrics       │
-                                              │ • Alarms        │
-                                              └─────────────────┘
+```mermaid
+graph LR
+    A[S3 Bucket<br/>• Versioning<br/>• Object Lock<br/>• Event Notify] --> B[SQS Queue]
+    B --> C[Lambda Function<br/>Process & Apply<br/>Legal Hold]
+    B --> D[Dead Letter Queue<br/>DLQ]
+    C --> E[CloudWatch<br/>• Logs<br/>• Metrics<br/>• Alarms]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#ffebee
+    style E fill:#fff3e0
 ```
 
 ### Key Features
@@ -140,27 +131,18 @@ S3前缀保护系统是一个自动化的AWS解决方案，基于可配置的前
 
 ### 架构图
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  S3 存储桶      │    │  SQS 队列       │    │  Lambda 函数    │
-│                 │    │                 │    │                 │
-│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
-│ │ 对象上传    │ │───▶│ │ S3 事件     │ │───▶│ │ 处理并应用  │ │
-│ │ (前缀匹配)  │ │    │ │ 消息        │ │    │ │ Legal Hold  │ │
-│ │             │ │    │ │             │ │    │ │             │ │
-│ │             │ │    │ └─────────────┘ │    │ └─────────────┘ │
-│ └─────────────┘ │    │                 │    │                 │
-│                 │    │ ┌─────────────┐ │    └─────────────────┘
-│ • 版本控制      │    │ │ 死信队列    │ │             │
-│ • 对象锁定      │    │ │ (DLQ)       │ │             │
-│ • 事件通知      │    │ │             │ │             ▼
-└─────────────────┘    │ └─────────────┘ │    ┌─────────────────┐
-                       └─────────────────┘    │  CloudWatch     │
-                                              │                 │
-                                              │ • 日志          │
-                                              │ • 指标          │
-                                              │ • 告警          │
-                                              └─────────────────┘
+```mermaid
+graph LR
+    A[S3存储桶<br/>• 版本控制<br/>• 对象锁定<br/>• 事件通知] --> B[SQS队列]
+    B --> C[Lambda函数<br/>处理并应用<br/>Legal Hold]
+    B --> D[死信队列<br/>DLQ]
+    C --> E[CloudWatch<br/>• 日志<br/>• 指标<br/>• 告警]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#ffebee
+    style E fill:#fff3e0
 ```
 
 ### 核心功能
