@@ -169,7 +169,7 @@ The system supports the following configuration options:
 - Logs ingestion: $0.50 per GB
 - Logs storage: $0.03 per GB per month
 - Custom metrics: $0.30 per metric per month
-- Alarms: $0.10 per alarm per month
+- Alarms: $0.10 per alarm per month (standard resolution)
 
 #### Cost Estimation Examples
 
@@ -400,7 +400,7 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 - 日志摄取: 每GB $0.50
 - 日志存储: 每月每GB $0.03
 - 自定义指标: 每月每个指标$0.30
-- 告警: 每月每个告警$0.10
+- 告警: 每月每个告警$0.10 (标准分辨率)
 
 #### 成本估算示例
 
