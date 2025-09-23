@@ -135,7 +135,7 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 The system supports the following configuration options:
 
 - **Protected Prefixes**: Define which object prefixes should be protected
-- **Lambda Memory**: Adjust memory allocation (128MB - 3008MB)
+- **Lambda Memory**: Adjust memory allocation (128MB - 10,240MB)
 - **Lambda Timeout**: Set processing timeout (1-900 seconds)
 - **Lifecycle Days**: Configure lifecycle policy reference
 
@@ -161,7 +161,7 @@ The system supports the following configuration options:
 - Free tier: 1M requests and 400,000 GB-seconds per month
 
 **Amazon SQS:**
-- Standard queue: $0.40 per 1M requests (first 100B requests)
+- Standard queue: $0.40 per 1M requests (first 100B requests), then tiered pricing
 - Dead letter queue: Same pricing as standard queue
 - Message retention: No additional cost for 14-day retention
 
@@ -367,7 +367,7 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 系统支持以下配置选项：
 
 - **保护前缀**: 定义哪些对象前缀应该被保护
-- **Lambda内存**: 调整内存分配（128MB - 3008MB）
+- **Lambda内存**: 调整内存分配（128MB - 10,240MB）
 - **Lambda超时**: 设置处理超时时间（1-900秒）
 - **生命周期天数**: 配置生命周期策略参考
 
@@ -393,7 +393,7 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 - 免费套餐: 每月100万请求和40万GB-秒
 
 **Amazon SQS:**
-- 标准队列: 每100万请求$0.40 (前1000亿请求)
+- 标准队列: 每100万请求$0.40 (前1000亿请求)，然后分层定价
 - 死信队列: 与标准队列相同定价
 - 消息保留: 14天保留期无额外费用
 
