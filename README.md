@@ -212,6 +212,7 @@ The system supports the following configuration options:
 - Adjust CloudWatch log retention period (default: 30 days)
 - Use log filtering to reduce ingestion costs
 - Set up billing alerts for cost monitoring
+- Note: Alarms are charged per rule per month, not per trigger (this system uses 2 alarm rules = $0.20/month)
 
 **Free Tier Benefits:**
 - Lambda: 1M requests/month free for first 12 months
@@ -443,6 +444,7 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 - 调整CloudWatch日志保留期 (默认30天)
 - 使用日志过滤来减少摄取成本
 - 设置计费告警进行成本监控
+- 注意: 告警按规则按月收费，不按触发次数收费 (本系统使用2个告警规则 = $0.20/月)
 
 **免费套餐优势:**
 - Lambda: 前12个月每月100万请求免费
