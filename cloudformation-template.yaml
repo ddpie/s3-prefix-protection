@@ -1,0 +1,441 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'S3 Object Protection System with Prefix-based Legal Hold Management'
+
+Parameters:
+  # Required parameters
+  ProtectedPrefixes:
+    Type: CommaDelimitedList
+    Description: 'List of object prefixes to protect, comma-separated (e.g., important/,backup/,archive/)'
+    ConstraintDescription: 'Must provide at least one prefix'
+
+  BucketName:
+    Type: String
+    Description: 'S3 bucket name (must be globally unique)'
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+    MinLength: 3
+    MaxLength: 63
+    ConstraintDescription: 'Bucket name must follow S3 naming rules: 3-63 characters, lowercase letters, numbers, dots and hyphens only'
+
+  LifecycleDays:
+    Type: Number
+    Default: 60
+    MinValue: 1
+    MaxValue: 3650
+    Description: 'Lifecycle policy deletion days (1-3650 days)'
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 128
+    AllowedValues: [128, 256, 512, 1024, 2048, 3008]
+    Description: 'Lambda function memory size (MB)'
+
+  LambdaTimeout:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 900
+    Description: 'Lambda function timeout (seconds)'
+
+Resources:
+  # SQS队列
+  SQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${BucketName}-object-processing-queue'
+      VisibilityTimeoutSeconds: 180
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  # 死信队列
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${BucketName}-dlq'
+      MessageRetentionPeriod: 1209600
+
+  # SQS队列策略
+  SQSQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SQSQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: 'sqs:SendMessage'
+            Resource: !GetAtt SQSQueue.Arn
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !Sub 'arn:aws:s3:::${BucketName}'
+
+  # Lambda执行角色
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${BucketName}-lambda-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: 'S3ObjectLockPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:PutObjectLegalHold'
+                  - 's3:GetObjectLegalHold'
+                  - 's3:GetBucketObjectLockConfiguration'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${BucketName}'
+                  - !Sub 'arn:aws:s3:::${BucketName}/*'
+              - Effect: Allow
+                Action:
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:DeleteMessage'
+                  - 'sqs:GetQueueAttributes'
+                Resource: !GetAtt SQSQueue.Arn
+
+  # S3通知配置Lambda的IAM角色
+  S3NotificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${BucketName}-s3-notification-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: 'S3NotificationPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:PutBucketNotification'
+                  - 's3:GetBucketNotification'
+                Resource: !Sub 'arn:aws:s3:::${BucketName}'
+
+  # CloudWatch日志组
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${BucketName}-object-processor'
+      RetentionInDays: 30
+
+  # S3通知配置Lambda日志组
+  S3NotificationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${BucketName}-s3-notification-config'
+      RetentionInDays: 7
+
+  # Lambda函数用于配置S3通知
+  S3NotificationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${BucketName}-s3-notification-config'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt S3NotificationRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import cfnresponse
+          import logging
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def lambda_handler(event, context):
+              try:
+                  s3 = boto3.client('s3')
+                  
+                  bucket_name = event['ResourceProperties']['BucketName']
+                  queue_arn = event['ResourceProperties']['QueueArn']
+                  
+                  logger.info(f"Request type: {event['RequestType']}")
+                  logger.info(f"Bucket: {bucket_name}")
+                  
+                  if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
+                      logger.info("Configuring S3 notification...")
+                      s3.put_bucket_notification_configuration(
+                          Bucket=bucket_name,
+                          NotificationConfiguration={
+                              'QueueConfigurations': [
+                                  {
+                                      'Id': 'ObjectCreatedNotification',
+                                      'QueueArn': queue_arn,
+                                      'Events': ['s3:ObjectCreated:*']
+                                  }
+                              ]
+                          }
+                      )
+                      logger.info("S3 notification configured successfully")
+                      
+                  elif event['RequestType'] == 'Delete':
+                      logger.info("Cleaning up S3 notification configuration...")
+                      try:
+                          s3.put_bucket_notification_configuration(
+                              Bucket=bucket_name,
+                              NotificationConfiguration={}
+                          )
+                          logger.info("S3 notification cleanup successful")
+                      except Exception as e:
+                          logger.warning(f"S3 notification cleanup failed (bucket may be deleted): {str(e)}")
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                      'Message': f'S3 notification configuration completed - {event["RequestType"]}'
+                  })
+                  
+              except Exception as e:
+                  logger.error(f"S3 notification configuration failed: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {
+                      'Error': str(e)
+                  })
+
+  # S3存储桶通知配置
+  S3BucketNotification:
+    Type: Custom::S3BucketNotification
+    Properties:
+      ServiceToken: !GetAtt S3NotificationFunction.Arn
+      BucketName: !Ref BucketName
+      QueueArn: !GetAtt SQSQueue.Arn
+    DependsOn: 
+      - SQSQueuePolicy
+
+  # 主要的Lambda函数
+  ObjectProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${BucketName}-object-processor'
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Environment:
+        Variables:
+          PROTECTED_PREFIXES: !Join [',', !Ref ProtectedPrefixes]
+          BUCKET_NAME: !Ref BucketName
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import logging
+          from urllib.parse import unquote_plus
+          import time
+
+          # 配置日志
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          # 初始化AWS客户端
+          s3_client = boto3.client('s3')
+
+          def apply_legal_hold_with_retry(bucket, key, max_retries=3):
+              """带重试机制的Legal Hold应用"""
+              for attempt in range(max_retries):
+                  try:
+                      s3_client.put_object_legal_hold(
+                          Bucket=bucket,
+                          Key=key,
+                          LegalHold={'Status': 'ON'}
+                      )
+                      return True
+                  except Exception as e:
+                      logger.warning(f"应用Legal Hold失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+                      if attempt < max_retries - 1:
+                          time.sleep(2 ** attempt)  # 指数退避
+                          continue
+                      raise
+              return False
+
+          def lambda_handler(event, context):
+              """
+              处理S3对象上传事件，对匹配保护前缀的对象应用Legal Hold
+              """
+              try:
+                  # 获取环境变量
+                  protected_prefixes = os.environ.get('PROTECTED_PREFIXES', '').split(',')
+                  bucket_name = os.environ.get('BUCKET_NAME')
+                  
+                  logger.info(f"Protected prefixes: {protected_prefixes}")
+                  logger.info(f"Processing event records: {len(event.get('Records', []))}")
+                  
+                  processed_count = 0
+                  protected_count = 0
+                  
+                  # Process SQS messages
+                  for record in event['Records']:
+                      # Parse S3 event message
+                      if 'body' in record:
+                          # Message from SQS
+                          message_body = json.loads(record['body'])
+                          if 'Records' in message_body:
+                              s3_records = message_body['Records']
+                          else:
+                              continue
+                      else:
+                          # Direct S3 event
+                          s3_records = [record]
+                      
+                      for s3_record in s3_records:
+                          # Extract object information
+                          bucket = s3_record['s3']['bucket']['name']
+                          key = unquote_plus(s3_record['s3']['object']['key'])
+                          
+                          logger.info(f"Processing object: s3://{bucket}/{key}")
+                          processed_count += 1
+                          
+                          # Check if object prefix needs protection
+                          should_protect = False
+                          matched_prefix = None
+                          for prefix in protected_prefixes:
+                              if prefix.strip() and key.startswith(prefix.strip()):
+                                  should_protect = True
+                                  matched_prefix = prefix.strip()
+                                  break
+                          
+                          if should_protect:
+                              try:
+                                  # Apply Legal Hold (with retry)
+                                  apply_legal_hold_with_retry(bucket, key)
+                                  protected_count += 1
+                                  logger.info(f"Successfully applied Legal Hold to object {key} (matched prefix: {matched_prefix})")
+                              except Exception as e:
+                                  logger.error(f"Failed to apply Legal Hold to object {key}: {str(e)}")
+                                  raise
+                          else:
+                              logger.info(f"Object {key} does not match any protected prefix, skipping")
+                  
+                  logger.info(f"Processing completed - Total: {processed_count}, Protected: {protected_count}")
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'message': 'Processing completed',
+                          'processed': processed_count,
+                          'protected': protected_count
+                      }, ensure_ascii=False)
+                  }
+                  
+              except Exception as e:
+                  logger.error(f"Lambda function execution failed: {str(e)}")
+                  raise
+
+  # Lambda事件源映射
+  LambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt SQSQueue.Arn
+      FunctionName: !Ref ObjectProcessorFunction
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 5
+
+  # CloudWatch告警 - 监控死信队列
+  DeadLetterQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${BucketName}-failed-messages-alert'
+      AlarmDescription: 'Alert when messages fail to process'
+      MetricName: ApproximateNumberOfVisibleMessages
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DeadLetterQueue.QueueName
+      TreatMissingData: notBreaching
+
+  # CloudWatch告警 - 监控Lambda错误
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${BucketName}-processing-errors-alert'
+      AlarmDescription: 'Alert when object processing fails'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ObjectProcessorFunction
+      TreatMissingData: notBreaching
+
+Outputs:
+  S3BucketName:
+    Description: 'S3 bucket name used'
+    Value: !Ref BucketName
+    Export:
+      Name: !Sub '${AWS::StackName}-S3BucketName'
+
+  S3BucketArn:
+    Description: 'S3 bucket ARN'
+    Value: !Sub 'arn:aws:s3:::${BucketName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-S3BucketArn'
+
+  S3BucketUrl:
+    Description: 'S3 bucket console URL'
+    Value: !Sub 'https://s3.console.aws.amazon.com/s3/buckets/${BucketName}?region=${AWS::Region}'
+
+  LambdaFunctionArn:
+    Description: 'Lambda function ARN'
+    Value: !GetAtt ObjectProcessorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionArn'
+
+  SQSQueueUrl:
+    Description: 'SQS queue URL'
+    Value: !Ref SQSQueue
+    Export:
+      Name: !Sub '${AWS::StackName}-SQSQueueUrl'
+
+  SQSQueueArn:
+    Description: 'SQS queue ARN'
+    Value: !GetAtt SQSQueue.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SQSQueueArn'
+
+  DeadLetterQueueUrl:
+    Description: 'Dead letter queue URL'
+    Value: !Ref DeadLetterQueue
+    Export:
+      Name: !Sub '${AWS::StackName}-DeadLetterQueueUrl'
+
+  ConfigurationSummary:
+    Description: 'System configuration overview'
+    Value: !Sub 
+      - |
+        S3 Bucket: ${BucketName}
+        Protected Prefixes: ${PrefixList}
+        Lambda Memory: ${LambdaMemorySize}MB
+        Lambda Timeout: ${LambdaTimeout}s
+        Region: ${AWS::Region}
+        Monitoring: Enabled
+      - PrefixList: !Join [',', !Ref ProtectedPrefixes]
