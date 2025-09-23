@@ -50,8 +50,8 @@ sequenceDiagram
     end
     alt Processing fails
         Lambda->>CW: Log error
-        SQS->>Lambda: Retry (up to 5 times)
-        alt Max retries exceeded
+        SQS->>Lambda: Retry with backoff strategy
+        alt Max retries exceeded (5 attempts)
             SQS->>DLQ: Move message to DLQ
             DLQ->>CW: Trigger alarm
         end
@@ -173,6 +173,8 @@ The system supports the following configuration options:
 
 #### Cost Estimation Examples
 
+*Note: All pricing estimates are based on US East (N. Virginia) region as of September 2025.*
+
 **Small Scale (1,000 objects/month):**
 - S3 storage (1GB): ~$0.02
 - Lambda (1,000 invocations): ~$0.00 (within free tier)
@@ -279,8 +281,8 @@ sequenceDiagram
     end
     alt 处理失败
         Lambda->>CW: 记录错误日志
-        SQS->>Lambda: 重试(最多5次)
-        alt 超过最大重试次数
+        SQS->>Lambda: 重试(指数退避策略)
+        alt 超过最大重试次数(5次)
             SQS->>DLQ: 消息移至死信队列
             DLQ->>CW: 触发告警
         end
@@ -401,6 +403,8 @@ aws sqs receive-message --queue-url <dead-letter-queue-url>
 - 告警: 每月每个告警$0.10
 
 #### 成本估算示例
+
+*注：所有定价估算基于美国东部（弗吉尼亚北部）区域，截至2025年9月。*
 
 **小规模使用 (1,000个对象/月):**
 - S3存储 (1GB): ~$0.02
