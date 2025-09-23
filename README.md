@@ -13,47 +13,80 @@ The S3 Prefix Protection System is an automated AWS solution that applies Legal 
 ### Architecture Diagram
 
 ```mermaid
-graph LR
-    A[S3 Bucket<br/>• Versioning<br/>• Object Lock<br/>• Event Notify] --> B[SQS Queue]
-    B --> C[Lambda Function<br/>Process & Apply<br/>Legal Hold]
-    B --> D[Dead Letter Queue<br/>DLQ]
-    C --> E[CloudWatch<br/>• Logs<br/>• Metrics<br/>• Alarms]
+flowchart TD
+    A["`**S3 Bucket**
+    • Versioning Enabled
+    • Object Lock Enabled
+    • Event Notifications`"] --> B["`**SQS Queue**
+    • Standard Queue
+    • Message Retention: 14 days`"]
     
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#ffebee
-    style E fill:#fff3e0
+    B --> C["`**Lambda Function**
+    • Event Processing
+    • Legal Hold Application
+    • Error Handling`"]
+    
+    B --> D["`**Dead Letter Queue**
+    • Failed Messages
+    • Max Receive Count: 5`"]
+    
+    C --> E["`**CloudWatch**
+    • Logs & Metrics
+    • Alarms & Monitoring
+    • Audit Trail`"]
+    
+    D --> E
+    
+    style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style B fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style C fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style D fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+    style E fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    
+    classDef default font-size:12px
 ```
 
 ### Process Flow
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant U as User
     participant S3 as S3 Bucket
     participant SQS as SQS Queue
-    participant Lambda as Lambda Function
+    participant L as Lambda Function
     participant CW as CloudWatch
     participant DLQ as Dead Letter Queue
 
-    User->>S3: Upload object to protected prefix
-    S3->>SQS: Send object created event
-    SQS->>Lambda: Trigger function with event
-    Lambda->>Lambda: Check prefix match
+    Note over U,DLQ: Object Upload & Processing Flow
+    
+    U->>+S3: Upload object to protected prefix
+    S3->>+SQS: Send ObjectCreated event
+    SQS->>+L: Trigger function execution
+    
+    L->>L: Validate prefix match
+    
     alt Prefix matches protection rule
-        Lambda->>S3: Apply Legal Hold to object
-        S3-->>Lambda: Legal Hold applied successfully
-        Lambda->>CW: Log success
+        L->>+S3: Apply Legal Hold
+        S3-->>-L: Legal Hold applied successfully
+        L->>CW: Log success event
+        Note right of CW: Object protected
     else Prefix doesn't match
-        Lambda->>CW: Log skip (no protection needed)
+        L->>CW: Log skip event
+        Note right of CW: No protection needed
     end
+    
+    L-->>-SQS: Processing complete
+    SQS-->>-S3: Acknowledge message
+    
     alt Processing fails
-        Lambda->>CW: Log error
-        SQS->>Lambda: Retry with backoff strategy
+        L->>CW: Log error details
+        L-->>SQS: Return failure
+        SQS->>SQS: Retry with exponential backoff
+        
         alt Max retries exceeded (5 attempts)
-            SQS->>DLQ: Move message to DLQ
-            DLQ->>CW: Trigger alarm
+            SQS->>+DLQ: Move message to DLQ
+            DLQ->>CW: Trigger alarm notification
+            Note right of CW: Manual intervention required
         end
     end
 ```
@@ -245,17 +278,37 @@ S3前缀保护系统是一个自动化的AWS解决方案，基于可配置的前
 ### 架构图
 
 ```mermaid
-graph LR
-    A[S3存储桶<br/>• 版本控制<br/>• 对象锁定<br/>• 事件通知] --> B[SQS队列]
-    B --> C[Lambda函数<br/>处理并应用<br/>Legal Hold]
-    B --> D[死信队列<br/>DLQ]
-    C --> E[CloudWatch<br/>• 日志<br/>• 指标<br/>• 告警]
+flowchart TD
+    A["`**S3存储桶**
+    • 版本控制已启用
+    • 对象锁定已启用
+    • 事件通知配置`"] --> B["`**SQS队列**
+    • 标准队列
+    • 消息保留期: 14天`"]
     
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#ffebee
-    style E fill:#fff3e0
+    B --> C["`**Lambda函数**
+    • 事件处理
+    • Legal Hold应用
+    • 错误处理`"]
+    
+    B --> D["`**死信队列**
+    • 失败消息处理
+    • 最大接收次数: 5次`"]
+    
+    C --> E["`**CloudWatch**
+    • 日志与指标
+    • 告警与监控
+    • 审计跟踪`"]
+    
+    D --> E
+    
+    style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style B fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style C fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style D fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+    style E fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    
+    classDef default font-size:12px
 ```
 
 ### 处理流程
@@ -269,23 +322,36 @@ sequenceDiagram
     participant CW as CloudWatch
     participant DLQ as 死信队列
 
-    User->>S3: 上传对象到保护前缀
-    S3->>SQS: 发送对象创建事件
-    SQS->>Lambda: 触发函数处理事件
-    Lambda->>Lambda: 检查前缀匹配
+    Note over User,DLQ: 对象上传与处理流程
+    
+    User->>+S3: 上传对象到保护前缀
+    S3->>+SQS: 发送对象创建事件
+    SQS->>+Lambda: 触发函数执行
+    
+    Lambda->>Lambda: 验证前缀匹配
+    
     alt 前缀匹配保护规则
-        Lambda->>S3: 对对象应用Legal Hold
-        S3-->>Lambda: Legal Hold应用成功
-        Lambda->>CW: 记录成功日志
+        Lambda->>+S3: 应用Legal Hold
+        S3-->>-Lambda: Legal Hold应用成功
+        Lambda->>CW: 记录成功事件
+        Note right of CW: 对象已保护
     else 前缀不匹配
-        Lambda->>CW: 记录跳过日志(无需保护)
+        Lambda->>CW: 记录跳过事件
+        Note right of CW: 无需保护
     end
+    
+    Lambda-->>-SQS: 处理完成
+    SQS-->>-S3: 确认消息
+    
     alt 处理失败
-        Lambda->>CW: 记录错误日志
-        SQS->>Lambda: 重试(指数退避策略)
+        Lambda->>CW: 记录错误详情
+        Lambda-->>SQS: 返回失败
+        SQS->>SQS: 指数退避重试
+        
         alt 超过最大重试次数(5次)
-            SQS->>DLQ: 消息移至死信队列
-            DLQ->>CW: 触发告警
+            SQS->>+DLQ: 消息移至死信队列
+            DLQ->>CW: 触发告警通知
+            Note right of CW: 需要人工干预
         end
     end
 ```
