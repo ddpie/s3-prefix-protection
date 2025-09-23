@@ -26,6 +26,38 @@ graph LR
     style E fill:#fff3e0
 ```
 
+### Process Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant S3 as S3 Bucket
+    participant SQS as SQS Queue
+    participant Lambda as Lambda Function
+    participant CW as CloudWatch
+    participant DLQ as Dead Letter Queue
+
+    User->>S3: Upload object to protected prefix
+    S3->>SQS: Send object created event
+    SQS->>Lambda: Trigger function with event
+    Lambda->>Lambda: Check prefix match
+    alt Prefix matches protection rule
+        Lambda->>S3: Apply Legal Hold to object
+        S3-->>Lambda: Legal Hold applied successfully
+        Lambda->>CW: Log success
+    else Prefix doesn't match
+        Lambda->>CW: Log skip (no protection needed)
+    end
+    alt Processing fails
+        Lambda->>CW: Log error
+        SQS->>Lambda: Retry (up to 5 times)
+        alt Max retries exceeded
+            SQS->>DLQ: Move message to DLQ
+            DLQ->>CW: Trigger alarm
+        end
+    end
+```
+
 ### Key Features
 
 - **Automated Protection**: Automatically applies S3 Object Lock Legal Hold to objects matching specified prefixes
@@ -143,6 +175,38 @@ graph LR
     style C fill:#e8f5e8
     style D fill:#ffebee
     style E fill:#fff3e0
+```
+
+### 处理流程
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant S3 as S3存储桶
+    participant SQS as SQS队列
+    participant Lambda as Lambda函数
+    participant CW as CloudWatch
+    participant DLQ as 死信队列
+
+    User->>S3: 上传对象到保护前缀
+    S3->>SQS: 发送对象创建事件
+    SQS->>Lambda: 触发函数处理事件
+    Lambda->>Lambda: 检查前缀匹配
+    alt 前缀匹配保护规则
+        Lambda->>S3: 对对象应用Legal Hold
+        S3-->>Lambda: Legal Hold应用成功
+        Lambda->>CW: 记录成功日志
+    else 前缀不匹配
+        Lambda->>CW: 记录跳过日志(无需保护)
+    end
+    alt 处理失败
+        Lambda->>CW: 记录错误日志
+        SQS->>Lambda: 重试(最多5次)
+        alt 超过最大重试次数
+            SQS->>DLQ: 消息移至死信队列
+            DLQ->>CW: 触发告警
+        end
+    end
 ```
 
 ### 核心功能
