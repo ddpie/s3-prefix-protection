@@ -145,10 +145,10 @@ sequenceDiagram
 ```bash
 # Upload a test file
 echo "Test content" > test.txt
-aws s3 cp test.txt s3://my-bucket/important/test.txt
+aws s3 cp test.txt s3://my-prod-bucket/critical/test.txt
 
 # Check Legal Hold status
-aws s3api get-object-legal-hold --bucket my-bucket --key important/test.txt
+aws s3api get-object-legal-hold --bucket my-prod-bucket --key critical/test.txt
 ```
 
 ### Monitoring
@@ -410,10 +410,10 @@ sequenceDiagram
 ```bash
 # 上传测试文件
 echo "测试内容" > test.txt
-aws s3 cp test.txt s3://my-bucket/important/test.txt
+aws s3 cp test.txt s3://my-prod-bucket/critical/test.txt
 
 # 检查Legal Hold状态
-aws s3api get-object-legal-hold --bucket my-bucket --key important/test.txt
+aws s3api get-object-legal-hold --bucket my-prod-bucket --key critical/test.txt
 ```
 
 ### 监控
